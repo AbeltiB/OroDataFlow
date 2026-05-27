@@ -75,36 +75,37 @@ async function testLogin() {
     console.log(`      Start: ${startUrl}`);
     console.log(`      End  : ${endUrl}`);
 
-    // ── 4. Error detection ────────────────────────────────────────────────────
-    console.log("\n[4/5] Checking for error messages...");
-    const errors = await page.evaluate(() => {
-      const sels = ['[role="alert"]', '[class*="error"]', '[class*="toast"]', '[class*="danger"]'];
-      const msgs: string[] = [];
-      for (const s of sels) {
-        document.querySelectorAll<HTMLElement>(s).forEach((el) => {
-          const t = el.innerText?.trim();
-          if (t && t.toLowerCase() !== "login") msgs.push(`${s}: "${t}"`);
-        });
-      }
-      return msgs;
-    });
-    if (errors.length) {
-      errors.forEach((e) => console.log(`      ⚠️  ${e}`));
-    } else {
-      console.log("      No error messages.");
-    }
-
-    // ── 5. Result ─────────────────────────────────────────────────────────────
-    console.log("\n[5/5] Result:");
-    if (endUrl !== startUrl) {
-      console.log(`\n✅  LOGIN SUCCESSFUL`);
-      console.log(`   Redirected to : ${endUrl}`);
-      const cookies = await context.cookies();
-      console.log(`   Cookies set   : ${cookies.map((c) => c.name).join(", ") || "(none)"}`);
-    } else {
+    // ── 4. Result ─────────────────────────────────────────────────────────────
+    console.log("\n[4/5] Result:");
+    if (endUrl === startUrl) {
       console.log(`\n❌  LOGIN FAILED — URL did not change`);
       process.exitCode = 1;
+      return;
     }
+
+    console.log(`\n✅  LOGIN SUCCESSFUL — redirected to ${endUrl}`);
+
+    // ── 5. Navigate to Reports page and inspect download options ─────────────
+    console.log("\n[5/5] Navigating to /reports/daily-report ...");
+    const baseOrigin = new URL(url).origin;
+    await page.goto(`${baseOrigin}/reports/daily-report`, { waitUntil: "networkidle", timeout: 30_000 });
+    console.log(`      Current URL: ${page.url()}`);
+    await shot(page, "4-reports");
+
+    // Click Export and capture the download
+    console.log("\n  Clicking Export button...");
+    const [download] = await Promise.all([
+      page.waitForEvent("download", { timeout: 30_000 }),
+      page.getByRole("button", { name: "Export" }).click(),
+    ]);
+
+    const suggestedName = download.suggestedFilename();
+    const savePath = path.join(SS, suggestedName || "export-file");
+    await download.saveAs(savePath);
+
+    console.log(`\n✅  EXPORT SUCCESSFUL`);
+    console.log(`   File name : ${suggestedName}`);
+    console.log(`   Saved to  : ${savePath}`);
   } catch (err) {
     await shot(page, "error").catch(() => {});
     console.error("\n❌  EXCEPTION:", (err as Error).message);
