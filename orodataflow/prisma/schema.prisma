@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model TripRecord {
+  id          String    @id @default(cuid())
+  csvBackupId String
+  csvBackup   CsvBackup @relation(fields: [csvBackupId], references: [id])
+
+  departure    String
+  arrival      String
+  tripDate     DateTime
+  plateNo      String
+  plateCode    String
+  level        String
+  fleetType    String
+  association  String
+  passengers   Int
+  tariff       Float
+  serviceCharge Float
+  tripDistance Float
+  employeeName String
+  total        Float
+
+  importedAt DateTime @default(now())
+
+  @@index([tripDate])
+  @@index([departure, arrival])
+  @@index([association])
+  @@index([fleetType])
+  @@index([level])
+}
+
+model CsvBackup {
+  id           String       @id @default(cuid())
+  filename     String
+  reportDate   String
+  rowCount     Int
+  source       String
+  downloadedAt DateTime     @default(now())
+  trips        TripRecord[]
+
+  @@index([reportDate])
+}
+
+model RunLog {
+  id            String   @id @default(cuid())
+  triggeredBy   String
+  status        String
+  stage         String?
+  error         String?
+  csvBackupId   String?
+  excelFile     String?
+  rowCount      Int?
+  sentToTelegram String[]
+  sentToEmail    String[]
+  startedAt     DateTime  @default(now())
+  finishedAt    DateTime?
+
+  @@index([startedAt])
+  @@index([status])
+}
+
+model Recipient {
+  id        String   @id @default(cuid())
+  name      String
+  chatId    String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model EmailRecipient {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model AppConfig {
+  id             String   @id @default("singleton")
+  cronEnabled    Boolean  @default(false)
+  cronTime       String   @default("08:00")
+  timezone       String   @default("Africa/Addis_Ababa")
+  weeklyEnabled  Boolean  @default(true)
+  weeklyDay      Int      @default(1)
+  weeklyTime     String   @default("07:00")
+  updatedAt      DateTime @updatedAt
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
