@@ -7,6 +7,32 @@ datasource db {
   provider = "postgresql"
 }
 
+model Station {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  arrivals    Arrival[]
+  tripRecords TripRecord[]
+  createdAt   DateTime     @default(now())
+}
+
+model Arrival {
+  id          String       @id @default(cuid())
+  name        String
+  stationId   String
+  station     Station      @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  tripRecords TripRecord[]
+  createdAt   DateTime     @default(now())
+
+  @@unique([name, stationId])
+}
+
+model Employee {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  tripRecords TripRecord[]
+  createdAt   DateTime     @default(now())
+}
+
 model TripRecord {
   id          String    @id @default(cuid())
   csvBackupId String
@@ -15,25 +41,45 @@ model TripRecord {
   departure    String
   arrival      String
   tripDate     DateTime
-  plateNo      String
-  plateCode    String
-  level        String
-  fleetType    String
-  association  String
-  passengers   Int
-  tariff       Float
+
+  // Computed / enhanced fields
+  plate            String?  // "OR-3-61253" (plateCode + plateNo concatenated)
+  associationName  String?  // "Yenyaa" (stripped from "Yenyaa-1")
+  associationLevel String?  // "1" (extracted from "Yenyaa-1")
+  serviceChargeSum Float?   // serviceCharge * passengers
+
+  // Original CSV fields
+  plateNo       String
+  plateCode     String
+  level         String   // "Level 1" / "Level 2" / "Level 3"
+  fleetType     String   // "Midbus" / "Minibus"
+  association   String   // raw association string
+  passengers    Int
+  tariff        Float
   serviceCharge Float
-  tripDistance Float
-  employeeName String
-  total        Float
+  tripDistance  Float
+  employeeName  String
+  total         Float
+
+  // Relations (nullable — populated by pipeline, backfilled over time)
+  stationId    String?
+  arrivalRefId String?
+  employeeId   String?
+  station      Station?  @relation(fields: [stationId], references: [id])
+  arrivalRef   Arrival?  @relation(fields: [arrivalRefId], references: [id])
+  employee     Employee? @relation(fields: [employeeId], references: [id])
 
   importedAt DateTime @default(now())
 
   @@index([tripDate])
   @@index([departure, arrival])
   @@index([association])
+  @@index([associationName])
   @@index([fleetType])
   @@index([level])
+  @@index([stationId])
+  @@index([employeeId])
+  @@index([csvBackupId])
 }
 
 model CsvBackup {
@@ -49,18 +95,18 @@ model CsvBackup {
 }
 
 model RunLog {
-  id            String   @id @default(cuid())
-  triggeredBy   String
-  status        String
-  stage         String?
-  error         String?
-  csvBackupId   String?
-  excelFile     String?
-  rowCount      Int?
+  id             String    @id @default(cuid())
+  triggeredBy    String
+  status         String
+  stage          String?
+  error          String?
+  csvBackupId    String?
+  excelFile      String?
+  rowCount       Int?
   sentToTelegram String[]
   sentToEmail    String[]
-  startedAt     DateTime  @default(now())
-  finishedAt    DateTime?
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
 
   @@index([startedAt])
   @@index([status])
@@ -83,14 +129,14 @@ model EmailRecipient {
 }
 
 model AppConfig {
-  id             String   @id @default("singleton")
-  cronEnabled    Boolean  @default(false)
-  cronTime       String   @default("08:00")
-  timezone       String   @default("Africa/Addis_Ababa")
-  weeklyEnabled  Boolean  @default(true)
-  weeklyDay      Int      @default(1)
-  weeklyTime     String   @default("07:00")
-  updatedAt      DateTime @updatedAt
+  id            String   @id @default("singleton")
+  cronEnabled   Boolean  @default(false)
+  cronTime      String   @default("08:00")
+  timezone      String   @default("Africa/Addis_Ababa")
+  weeklyEnabled Boolean  @default(true)
+  weeklyDay     Int      @default(1)
+  weeklyTime    String   @default("07:00")
+  updatedAt     DateTime @updatedAt
 }
 
 model User {
